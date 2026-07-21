@@ -202,7 +202,7 @@ def build_atom(entries):
 
 def claims_link(d: dict) -> str:
     """Link zum AssignmentClaim-Export, falls die Runde contested ist und Claims existieren."""
-    p = Path(__file__).parent / "kanon-export" / f"{d['slug']}-claims.json"
+    p = Path(__file__).parent / "docs" / "kanon-export" / f"{d['slug']}-claims.json"
     if p.exists():
         return (f'<p class="small"><a href="../kanon-export/{p.name}">⚖ AssignmentClaim-Entwürfe '
                 f'dieser Runde (JSON, unvalidiert)</a></p>')

@@ -27,7 +27,7 @@ _spec = importlib.util.spec_from_file_location("tisch_site", D / "site.py")
 site_mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(site_mod)
 
-OUT = D / "kanon-export"
+OUT = D / "docs" / "kanon-export"  # innerhalb docs/, sonst nicht per Pages erreichbar
 
 CEILING = [
     "Keine Ratifikation durch den Tisch — der Tisch behauptet nichts, er bezeugt Positionen.",
