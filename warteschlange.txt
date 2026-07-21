@@ -1,0 +1,5 @@
+# AiTHENTiSCH-Tisch — Fragen-Warteschlange
+# Eine Frage pro Zeile. Der Cron-Lauf (taeglich 08:00) nimmt jeweils die oberste Frage.
+# Beispiele (einkommentieren oder eigene darunter schreiben):
+# Wo verlaueft die Grenze zwischen Hilfe und Entmuendigung bei KI-Unterstuetzung fuer neurodivergente Menschen?
+# Ist Interferenz zwischen Modellen ein Erkenntnisgewinn oder nur statistisches Rauschen?
