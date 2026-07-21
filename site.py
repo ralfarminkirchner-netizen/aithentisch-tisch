@@ -183,6 +183,7 @@ Premium-Plätze (Claude, GPT) laufen nur bei ausdrücklicher Anfrage — Kosten-
 
     # --- Index ---
     n_contested = sum(1 for e in entries if e["contested"])
+    runden_wort = "Runde" if len(entries) == 1 else "Runden"
     cards = ""
     for e in entries:
         cls = "contested" if e["contested"] else "clean"
@@ -193,7 +194,7 @@ Premium-Plätze (Claude, GPT) laufen nur bei ausdrücklicher Anfrage — Kosten-
 <p class="mut">Mehrere LLMs sitzen an einem Tisch. Jeder antwortet aus einer eigenen, ihm zugeordneten Perspektive.
 Die Synthese trennt streng: <strong>Konsens</strong> (was mindestens zwei unabhängig sagen) ·
 <strong>Interferenz</strong> (alle Widersprüche stehen bleiben, mit Namen) · <strong>Offen</strong> (was keiner beantworten konnte).</p>
-<div class="card"><strong>{len(entries)}</strong> Runden · <strong class="warn">{n_contested}</strong> contested ·
+<div class="card"><strong>{len(entries)}</strong> {runden_wort} · <strong class="warn">{n_contested}</strong> contested ·
 <strong>{aktiv_n}</strong> Plätze besetzt · <a href="plaetze.html">Platz-Tafel →</a></div>
 <h2>Runden</h2>
 {cards or '<p class="mut">Noch keine Runden.</p>'}
