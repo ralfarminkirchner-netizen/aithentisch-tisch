@@ -1,0 +1,131 @@
+[
+  {
+    "$schema_note": "AssignmentClaim-Entwurf v0.1 (Tisch-Export; NICHT gegen mindlaxy-canon-engine v0.4 validiert)",
+    "id": "ac-tisch-20260721-tisch-was-unterscheidet-eine-zuordnung-von-einer-zugeh-01",
+    "type": "AssignmentClaim",
+    "status": "proposed",
+    "assignment_kind": "position_attribution",
+    "source": {
+      "kind": "question",
+      "ref": "Was unterscheidet eine Zuordnung von einer Zugehörigkeit — und warum ist der Unterschied verfassungsrelevant?"
+    },
+    "claim": "Positiv. Der Unterschied schützt den Bürger vor staatlich auferlegten Identitäten. Zuordnung darf empfundene oder gewählte Zugehörigkeit nie überstimmen; Kollisionen zeigen sich an Art. 1/2 GG (Selbstbestimmung), Vereinigungsfreiheit und Rechtsstaatlichkeit. Praxismaßstab: Aus Zuordnungen dürfen keine Zugehörigkeitsfolgen konstruiert werden (Wohnort ≠ Kulturzugehörigkeit).",
+    "claimed_by": {
+      "seat": "gemini",
+      "perspektive": "Praktiker",
+      "provider": "gemini",
+      "model": "gemini-2.5-flash",
+      "cost_tier": "free"
+    },
+    "validity_dimensions": [
+      "epistemic"
+    ],
+    "scope": {
+      "round": "20260721-tisch-was-unterscheidet-eine-zuordnung-von-einer-zugeh",
+      "created": "2026-07-21"
+    },
+    "claim_ceiling": [
+      "Keine Ratifikation durch den Tisch — der Tisch behauptet nichts, er bezeugt Positionen.",
+      "Die Position ist perspektiv- und modellgebunden, nicht wahrheitsbehauptend.",
+      "Widersprechende Positionen derselben Runde bleiben gleichberechtigt bestehen.",
+      "Gueltig nur im Kontext der ausgewiesenen Frage und Runde."
+    ],
+    "contested_by": [
+      "kimi",
+      "kimi-kritik"
+    ],
+    "provenance": {
+      "pipeline": "aithentisch-tisch v2",
+      "round_file": "queries/20260721-tisch-was-unterscheidet-eine-zuordnung-von-einer-zugeh.md",
+      "round_url": "https://ralfarminkirchner-netizen.github.io/aithentisch-tisch/runden/20260721-tisch-was-unterscheidet-eine-zuordnung-von-einer-zugeh.html",
+      "exported": "2026-07-21"
+    },
+    "revision_path": "Neue Tischrunde zur selben Frage oder menschliches Review. Kanon setzt nur Ralf."
+  },
+  {
+    "$schema_note": "AssignmentClaim-Entwurf v0.1 (Tisch-Export; NICHT gegen mindlaxy-canon-engine v0.4 validiert)",
+    "id": "ac-tisch-20260721-tisch-was-unterscheidet-eine-zuordnung-von-einer-zugeh-02",
+    "type": "AssignmentClaim",
+    "status": "proposed",
+    "assignment_kind": "position_attribution",
+    "source": {
+      "kind": "question",
+      "ref": "Was unterscheidet eine Zuordnung von einer Zugehörigkeit — und warum ist der Unterschied verfassungsrelevant?"
+    },
+    "claim": "Positiv, mit Umkehrung der Gewichtung: \"Zuordnung ist Herrschaftstechnik, Zugehörigkeit ist Verfassungsvoraussetzung.\" Demokratie (Art. 20 GG) lebt von selbstkonstituierter Zugehörigkeit; zugeordnete Kollektive sind Herrschaftsobjekte. Nürnberger Gesetze als paradigmatischer Missbrauch der Zuordnung gegen Selbstdefinition. Die Differenz Jederrechte/Bürgerrechte ist genau die Zuordnungs-Zugehörigkeits-Differenz.",
+    "claimed_by": {
+      "seat": "kimi",
+      "perspektive": "Analytiker",
+      "provider": "kimi-for-coding",
+      "model": "default",
+      "cost_tier": "cheap"
+    },
+    "validity_dimensions": [
+      "epistemic"
+    ],
+    "scope": {
+      "round": "20260721-tisch-was-unterscheidet-eine-zuordnung-von-einer-zugeh",
+      "created": "2026-07-21"
+    },
+    "claim_ceiling": [
+      "Keine Ratifikation durch den Tisch — der Tisch behauptet nichts, er bezeugt Positionen.",
+      "Die Position ist perspektiv- und modellgebunden, nicht wahrheitsbehauptend.",
+      "Widersprechende Positionen derselben Runde bleiben gleichberechtigt bestehen.",
+      "Gueltig nur im Kontext der ausgewiesenen Frage und Runde."
+    ],
+    "contested_by": [
+      "gemini",
+      "kimi-kritik"
+    ],
+    "provenance": {
+      "pipeline": "aithentisch-tisch v2",
+      "round_file": "queries/20260721-tisch-was-unterscheidet-eine-zuordnung-von-einer-zugeh.md",
+      "round_url": "https://ralfarminkirchner-netizen.github.io/aithentisch-tisch/runden/20260721-tisch-was-unterscheidet-eine-zuordnung-von-einer-zugeh.html",
+      "exported": "2026-07-21"
+    },
+    "revision_path": "Neue Tischrunde zur selben Frage oder menschliches Review. Kanon setzt nur Ralf."
+  },
+  {
+    "$schema_note": "AssignmentClaim-Entwurf v0.1 (Tisch-Export; NICHT gegen mindlaxy-canon-engine v0.4 validiert)",
+    "id": "ac-tisch-20260721-tisch-was-unterscheidet-eine-zuordnung-von-einer-zugeh-03",
+    "type": "AssignmentClaim",
+    "status": "proposed",
+    "assignment_kind": "position_attribution",
+    "source": {
+      "kind": "question",
+      "ref": "Was unterscheidet eine Zuordnung von einer Zugehörigkeit — und warum ist der Unterschied verfassungsrelevant?"
+    },
+    "claim": "Negativ. Das GG ist \"eine Zuordnungsmaschine\": Art. 3 verbindet Merkmale unabhängig vom Fühlen, Art. 116 definiert \"Deutscher\" über Zuordnungskriterien. Das sei Stärke, nicht Mangel — die Formalkriterien schützten historisch gerade die unerwünschten Zugeordneten (Art. 116 Abs. 2, Vertriebene). Zugehörigkeit ist justiziabel unfassbar, strategisch behauptbar, beidseitig kündbar — als Rechtskriterium erodiert sie den Gleichheitssatz. Pointe: \"Der Pass des unerwünschten Bürgers ist die reinste Leistung des Verfassungsstaats.\" Verfassung darf Zugehörigkeit schützen (Art. 4, 9 GG), aber nie zum Maßstab erheben.",
+    "claimed_by": {
+      "seat": "kimi-kritik",
+      "perspektive": "Advocatus diaboli",
+      "provider": "kimi-for-coding",
+      "model": "default",
+      "cost_tier": "cheap"
+    },
+    "validity_dimensions": [
+      "epistemic"
+    ],
+    "scope": {
+      "round": "20260721-tisch-was-unterscheidet-eine-zuordnung-von-einer-zugeh",
+      "created": "2026-07-21"
+    },
+    "claim_ceiling": [
+      "Keine Ratifikation durch den Tisch — der Tisch behauptet nichts, er bezeugt Positionen.",
+      "Die Position ist perspektiv- und modellgebunden, nicht wahrheitsbehauptend.",
+      "Widersprechende Positionen derselben Runde bleiben gleichberechtigt bestehen.",
+      "Gueltig nur im Kontext der ausgewiesenen Frage und Runde."
+    ],
+    "contested_by": [
+      "gemini",
+      "kimi"
+    ],
+    "provenance": {
+      "pipeline": "aithentisch-tisch v2",
+      "round_file": "queries/20260721-tisch-was-unterscheidet-eine-zuordnung-von-einer-zugeh.md",
+      "round_url": "https://ralfarminkirchner-netizen.github.io/aithentisch-tisch/runden/20260721-tisch-was-unterscheidet-eine-zuordnung-von-einer-zugeh.html",
+      "exported": "2026-07-21"
+    },
+    "revision_path": "Neue Tischrunde zur selben Frage oder menschliches Review. Kanon setzt nur Ralf."
+  }
+]

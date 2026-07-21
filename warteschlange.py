@@ -27,11 +27,17 @@ def main():
         sys.exit(0)  # silent
 
     todo, rest = open_q[:N], open_q[N:]
-    for q in todo:
+    for raw_q in todo:
+        # Format: "Frage | tags: thema1, thema2"  (Tags optional)
+        q, _, tagpart = raw_q.partition("| tags:")
+        q = q.strip()
+        tags = tagpart.strip() if tagpart else ""
         print(f"=== TISCHFRAGE: {q}")
+        cmd = [sys.executable, str(D / "tisch.py"), q]
+        if tags:
+            cmd += ["--tags", tags]
         try:
-            p = subprocess.run([sys.executable, str(D / "tisch.py"), q],
-                               capture_output=True, text=True, timeout=1500)
+            p = subprocess.run(cmd, capture_output=True, text=True, timeout=1500)
             sys.stderr.write(p.stderr)
             out = p.stdout.strip()
             print(out if out else "(kein Output — siehe Wiki)")
@@ -48,6 +54,8 @@ def main():
     if todo:
         try:
             subprocess.run([sys.executable, str(D / "site.py")], cwd=str(D),
+                           capture_output=True, text=True, timeout=120)
+            subprocess.run([sys.executable, str(D / "export_claims.py")], cwd=str(D),
                            capture_output=True, text=True, timeout=120)
             p = subprocess.run(["git", "add", "-A"], cwd=str(D), capture_output=True, text=True)
             st = subprocess.run(["git", "status", "--porcelain"], cwd=str(D),

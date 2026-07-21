@@ -319,6 +319,7 @@ def main():
                     help="Premium-Plaetze (Claude, GPT) dazunehmen — SPARSAM verwenden!")
     ap.add_argument("--list-seats", action="store_true", help="Platz-Tabelle anzeigen und beenden")
     ap.add_argument("--timeout", type=int, default=300)
+    ap.add_argument("--tags", help="Zusaetzliche Themen-Tags, kommagetrennt (landen im Frontmatter)")
     args = ap.parse_args()
 
     if args.list_seats:
@@ -346,7 +347,11 @@ def main():
     context = Path(args.context).read_text(encoding="utf-8")[:8000] if args.context else ""
 
     ts = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+    t0 = dt.datetime.now()
     slug = f"{ts[:8]}-tisch-{slugify(question)}"
+    extra_tags = [t.strip() for t in (args.tags or "").split(",") if t.strip()]
+    all_tags = ["methode", "offene-frage"] + [t for t in extra_tags if t not in ("methode", "offene-frage")]
+    tags_str = ", ".join(all_tags)
 
     print(f"[tisch] Frage: {question[:90]}", file=sys.stderr)
     print(f"[tisch] Plaetze ({len(seats)}): {', '.join(seats)}", file=sys.stderr)
@@ -389,7 +394,7 @@ created: {dt.date.today()}
 updated: {dt.date.today()}
 type: query
 status: proposed
-tags: [methode, offene-frage]
+tags: [{tags_str}]
 sources: [{sources}]
 confidence: medium
 contested: {'true' if contested else 'false'}
@@ -412,6 +417,21 @@ contested: {'true' if contested else 'false'}
 
     append_index(title, slug, ts[:8])
     append_log(question, slug, ok_seats, contested)
+
+    # Verlaufsprotokoll (history.jsonl) — Ausfallmuster & Runden-Dauer
+    try:
+        import json as _json
+        hist = Path(__file__).parent / "history.jsonl"
+        with hist.open("a", encoding="utf-8") as hf:
+            hf.write(_json.dumps({
+                "ts": dt.datetime.now().isoformat(timespec="seconds"),
+                "event": "round", "slug": slug, "seats": seats, "ok": ok_seats,
+                "contested": contested,
+                "duration_s": round((dt.datetime.now() - t0).total_seconds(), 1),
+            }) + "\n")
+    except Exception:
+        pass
+
     print(f"[tisch] Seite: {page}", file=sys.stderr)
     print(f"[tisch] contested: {'JA — Interferenz gespeichert' if contested else 'nein'}", file=sys.stderr)
     print(str(page))

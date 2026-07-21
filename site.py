@@ -19,6 +19,11 @@ import tisch  # SEATS, PERSPEKTIVEN, load_env_keys, seat_status
 WIKI = Path(os.environ.get("WIKI_PATH", str(Path.home() / "wiki")))
 DOCS = Path(__file__).parent / "docs"
 
+# Giscus (Kommentare via GitHub Discussions): aktiv, sobald die Giscus-App im Repo
+# installiert ist, Discussions an sind und hier die Kategorie-ID eingetragen wird.
+GISCUS_REPO_ID = "1308038765"
+GISCUS_CATEGORY_ID = ""  # TODO nach App-Installation eintragen
+
 STYLE = """
 :root { --bg:#0d1117; --fg:#e6edf3; --mut:#8b949e; --acc:#58a6ff; --ok:#3fb950; --warn:#d29922; --bad:#f85149; --card:#161b22; --line:#30363d; }
 * { box-sizing:border-box; }
@@ -102,7 +107,11 @@ def parse_query(path: Path) -> dict:
     frage = ""
     qm = re.search(r"\*\*Frage:\*\*\s*(.+)", text)
     if qm: frage = qm.group(1).strip()
-    return {"slug": path.stem, "fm": fm, "frage": frage, "body": text,
+    tags = []
+    tm = re.match(r"\[(.*)\]", fm.get("tags", ""))
+    if tm:
+        tags = [t.strip() for t in tm.group(1).split(",") if t.strip()]
+    return {"slug": path.stem, "fm": fm, "frage": frage, "body": text, "tags": tags,
             "contested": fm.get("contested", "false") == "true",
             "created": fm.get("created", "")}
 
@@ -191,6 +200,76 @@ def build_atom(entries):
 {items}</feed>"""
 
 
+def claims_link(d: dict) -> str:
+    """Link zum AssignmentClaim-Export, falls die Runde contested ist und Claims existieren."""
+    p = Path(__file__).parent / "kanon-export" / f"{d['slug']}-claims.json"
+    if p.exists():
+        return (f'<p class="small"><a href="../kanon-export/{p.name}">⚖ AssignmentClaim-Entwürfe '
+                f'dieser Runde (JSON, unvalidiert)</a></p>')
+    return ""
+
+
+def giscus_block(d: dict) -> str:
+    if not GISCUS_CATEGORY_ID:
+        return "<!-- Giscus: aktiviert sich, sobald App installiert + GISCUS_CATEGORY_ID gesetzt ist. -->"
+    return f"""
+<h2>Diskussion</h2>
+<script src="https://giscus.app/client.js"
+        data-repo="ralfarminkirchner-netizen/aithentisch-tisch"
+        data-repo-id="{GISCUS_REPO_ID}"
+        data-category="General"
+        data-category-id="{GISCUS_CATEGORY_ID}"
+        data-mapping="specific" data-term="{d['slug']}"
+        data-reactions-enabled="1" data-emit-metadata="0"
+        data-input-position="top" data-theme="dark"
+        data-lang="de" crossorigin="anonymous" async></script>"""
+
+
+def uptime_table() -> str:
+    """7-Tage-Uptime + Ø-Latenz pro Platz aus history.jsonl (Probe-Events)."""
+    import json
+    hist = Path(__file__).parent / "history.jsonl"
+    if not hist.exists():
+        return ""
+    from collections import defaultdict
+    ok_c, tot_c, lat = defaultdict(int), defaultdict(int), defaultdict(list)
+    cutoff = dt.date.today() - dt.timedelta(days=7)
+    for line in hist.read_text(encoding="utf-8").splitlines():
+        try:
+            r = json.loads(line)
+        except Exception:
+            continue
+        if r.get("event") != "probe":
+            continue
+        try:
+            day = dt.date.fromisoformat(r["ts"][:10])
+        except Exception:
+            continue
+        if day < cutoff:
+            continue
+        s = r["seat"]
+        tot_c[s] += 1
+        ok_c[s] += 1 if r.get("ok") else 0
+        lat[s].append(r.get("latency_s", 0))
+    if not tot_c:
+        return ""
+    rounds = [json.loads(l) for l in hist.read_text(encoding="utf-8").splitlines()
+              if l.strip() and '"event": "round"' in l]
+    dur = [r["duration_s"] for r in rounds if "duration_s" in r]
+    rows = "".join(
+        f"<tr><td><strong>{s}</strong></td><td>{tot_c[s]}</td>"
+        f"<td class='{'ok' if ok_c[s]==tot_c[s] else 'bad'}'>{round(100*ok_c[s]/tot_c[s])}%</td>"
+        f"<td>{round(sum(lat[s])/len(lat[s]),1)}s</td></tr>"
+        for s in sorted(tot_c))
+    extra = (f"<p class='small mut'>{len(dur)} Runden im Protokoll · Ø Dauer "
+             f"{round(sum(dur)/len(dur))}s</p>") if dur else ""
+    return f"""
+<h2>Verlauf (7 Tage)</h2>
+<p class="mut">Aus <code>history.jsonl</code>: Watchdog-Proben, Erfolgsquote, Ø Antwortzeit.</p>
+<table><tr><th>Platz</th><th>Proben</th><th>Uptime</th><th>Ø Latenz</th></tr>{rows}</table>
+{extra}"""
+
+
 def build():
     runden_dir = DOCS / "runden"
     runden_dir.mkdir(parents=True, exist_ok=True)
@@ -225,6 +304,8 @@ def build():
 {md_lite(main)}
 <h2>Rohantworten der Plätze</h2>
 {raw_html or '<p class="mut">Keine Rohantworten gefunden.</p>'}
+{claims_link(d)}
+{giscus_block(d)}
 """
         (runden_dir / f"{d['slug']}.html").write_text(
             page(d["frage"][:80] or d["slug"], body, f"Tischrunde · {d['created']}"), encoding="utf-8")
@@ -257,6 +338,7 @@ def build():
 <p class="mut">Jeder Platz = ein Modell + eine Perspektive. Perspektiven sind dem Modell-Charakter zugeordnet.
 Premium-Plätze (Claude, GPT) laufen nur bei ausdrücklicher Anfrage — Kosten-Disziplin ist Teil der Verfassung.</p>
 <table><tr><th>Platz</th><th>Stufe</th><th>Perspektive</th><th>Provider/Modell</th><th>Status</th></tr>{rows}</table>
+{uptime_table()}
 <div class="card"><h3>Regeln am Tisch</h3>
 <ul><li>Kein Platz benutzt Werkzeuge oder Websuche — Antwort aus eigenem Wissen.</li>
 <li>Unsicherheit wird als Unsicherheit markiert.</li>
@@ -272,8 +354,25 @@ Premium-Plätze (Claude, GPT) laufen nur bei ausdrücklicher Anfrage — Kosten-
     cards = ""
     for e in entries:
         cls = "contested" if e["contested"] else "clean"
-        cards += (f'<div class="card {cls}"><a href="runden/{e["slug"]}.html"><strong>{html.escape(e["frage"][:120] or e["slug"])}</strong></a>'
-                  f'<br><span class="small mut">{e["created"]} · {"⚡ contested" if e["contested"] else "○ ohne Widerspruch"}</span></div>')
+        chips = "".join(f'<span class="tag">{html.escape(t)}</span>' for t in e["tags"])
+        cards += (f'<div class="card {cls} runde-card" data-tags="{html.escape(" ".join(e["tags"]))}">'
+                  f'<a href="runden/{e["slug"]}.html"><strong>{html.escape(e["frage"][:120] or e["slug"])}</strong></a>'
+                  f'<br><span class="small mut">{e["created"]} · {"⚡ contested" if e["contested"] else "○ ohne Widerspruch"}</span> {chips}</div>')
+    # Themen-Filter (alle vorkommenden Tags)
+    all_tags = sorted({t for e in entries for t in e["tags"]})
+    filter_bar = ""
+    if all_tags and len(entries) > 1:
+        btns = "".join(f'<button class="tag" onclick="tagFilter(\'{t}\',this)">{html.escape(t)}</button>' for t in all_tags)
+        filter_bar = f"""<p class="small mut">Themen: <button class="tag" onclick="tagFilter('',this)">alle</button>{btns}</p>
+<script>
+function tagFilter(t, btn) {{
+  document.querySelectorAll('.runde-card').forEach(c => {{
+    c.style.display = (!t || (c.dataset.tags||'').split(' ').includes(t)) ? '' : 'none';
+  }});
+  document.querySelectorAll('button.tag').forEach(b => b.style.borderColor = 'var(--line)');
+  if (btn) btn.style.borderColor = 'var(--acc)';
+}}
+</script>"""
     aktiv_n = sum(1 for n, (a, _) in status.items() if a)
     index_body = f"""
 <p class="mut">Mehrere LLMs sitzen an einem Tisch. Jeder antwortet aus einer eigenen, ihm zugeordneten Perspektive.
@@ -282,6 +381,7 @@ Die Synthese trennt streng: <strong>Konsens</strong> (was mindestens zwei unabh�
 <div class="card"><strong>{len(entries)}</strong> {runden_wort} · <strong class="warn">{n_contested}</strong> contested ·
 <strong>{aktiv_n}</strong> Plätze besetzt · <a href="plaetze.html">Platz-Tafel →</a> · <a href="matrix.html">Interferenz-Matrix →</a> · <a href="atom.xml">Feed</a></div>
 <h2>Runden</h2>
+{filter_bar}
 {cards or '<p class="mut">Noch keine Runden.</p>'}
 """
     (DOCS / "index.html").write_text(
