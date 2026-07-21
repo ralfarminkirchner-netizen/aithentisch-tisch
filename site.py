@@ -73,10 +73,11 @@ def page(title: str, body: str, subtitle: str = "") -> str:
     return f"""<!DOCTYPE html>
 <html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{html.escape(title)} · AiTHENTiSCH-Tisch</title>
+<title>{html.escape(title) if title.startswith("AiTHENTiSCH") else html.escape(title) + " · AiTHENTiSCH-Tisch"}</title>
+<link rel="alternate" type="application/atom+xml" title="AiTHENTiSCH-Tisch" href="{'' if title.startswith('AiTHENTiSCH') else '../'}atom.xml">
 <style>{STYLE}</style></head>
 <body><div class="wrap">
-<p class="small mut"><a href="../index.html">← Übersicht</a> · <a href="../plaetze.html">Plätze</a></p>
+<p class="small mut"><a href="../index.html">← Übersicht</a> · <a href="../plaetze.html">Plätze</a> · <a href="../matrix.html">Interferenz-Matrix</a></p>
 <h1>{html.escape(title)}</h1>{sub}
 {body}
 <hr><p class="small mut">Erzeugt {dt.date.today()} · AiTHENTiSCH-Tisch · Interferenz ist Erkenntnis, kein Lärm.</p>
@@ -104,6 +105,90 @@ def parse_query(path: Path) -> dict:
     return {"slug": path.stem, "fm": fm, "frage": frage, "body": text,
             "contested": fm.get("contested", "false") == "true",
             "created": fm.get("created", "")}
+
+
+def build_matrix(entries):
+    """Interferenz-Matrix: Co-Konsens-Paare + Divergenz-Quote pro Platz.
+    Ehrliche Proxy-Metrik aus den Synthese-Strukturen (kein Embeddings-Voodoo)."""
+    from collections import Counter
+    co = Counter()          # (a,b) -> wie oft gemeinsam in einer KONSENS-Zeile
+    part = Counter()        # platz -> Runden mit Antwort
+    div = Counter()         # platz -> Runden, in denen er in INTERFERENZ auftaucht
+    seats = list(tisch.SEATS.keys())
+    for e in entries:
+        body = e["body"]
+        konsens_m = re.search(r"## KONSENS\n(.*?)## INTERFERENZ", body, re.S)
+        interf_m = re.search(r"## INTERFERENZ\n(.*?)(## OFFEN|contested:)", body, re.S)
+        present = set()
+        for s in seats:
+            if re.search(rf"\|Platz {re.escape(s)}\]\]", body) or f"-{s}.md" in body:
+                present.add(s)
+        for s in present:
+            part[s] += 1
+        if konsens_m:
+            for line in konsens_m.group(1).splitlines():
+                found = [s for s in seats if re.search(rf"\b{re.escape(s)}\b", line)]
+                for i in range(len(found)):
+                    for j in range(i + 1, len(found)):
+                        co[tuple(sorted((found[i], found[j])))] += 1
+        if interf_m:
+            for s in seats:
+                if re.search(rf"\b{re.escape(s)}\b", interf_m.group(1)):
+                    div[s] += 1
+    used = [s for s in seats if part[s] > 0]
+    if not used:
+        return "", ""
+    # Matrix-Tabelle (obere Dreiecksform)
+    header = "".join(f"<th class='small'>{s}</th>" for s in used)
+    mrows = ""
+    for a in used:
+        cells = f"<td><strong>{a}</strong><br><span class='small mut'>{part[a]} Runden</span></td>"
+        for b in used:
+            if a == b:
+                cells += "<td style='background:var(--card)' class='mut'>—</td>"
+            else:
+                n = co.get(tuple(sorted((a, b))), 0)
+                cells += f"<td>{n if n else ''}</td>"
+        mrows += f"<tr>{cells}</tr>"
+    divrows = "".join(
+        f"<tr><td><strong>{s}</strong></td><td>{part[s]}</td><td>{div.get(s,0)}</td>"
+        f"<td>{round(100*div.get(s,0)/part[s]) if part[s] else 0}%</td>"
+        f"<td class='small mut'>{html.escape(tisch.PERSPEKTIVEN[tisch.SEATS[s]['perspektive']][0])}</td></tr>"
+        for s in sorted(used, key=lambda x: -div.get(x, 0)))
+    matrix_html = f"""
+<h2>Co-Konsens-Matrix</h2>
+<p class="mut">Wie oft zwei Plätze in derselben KONSENS-Zeile genannt wurden (über {len(entries)} öffentliche Runden).
+Hohe Werte = die beiden landen oft gemeinsam im Konsens. Niedrige = sie befruchten sich eher durch Differenz.</p>
+<table><tr><th></th>{header}</tr>{mrows}</table>
+<h2>Divergenz-Profil</h2>
+<p class="mut">Wie oft ein Platz im INTERFERENZ-Abschnitt auftaucht — der Tisch braucht Plätze, die widersprechen.</p>
+<table><tr><th>Platz</th><th>Runden</th><th>divergiert</th><th>Quote</th><th>Perspektive</th></tr>{divrows}</table>
+"""
+    return matrix_html, used
+
+
+def build_atom(entries):
+    items = ""
+    for e in entries[:20]:
+        link = f"https://ralfarminkirchner-netizen.github.io/aithentisch-tisch/runden/{e['slug']}.html"
+        konsens = re.search(r"## KONSENS\n(.*?)\n## ", e["body"], re.S)
+        summary = html.escape((konsens.group(1).strip()[:400] + "…") if konsens else e["frage"])
+        items += f"""  <entry>
+    <title>{html.escape(e['frage'][:120] or e['slug'])}</title>
+    <link href="{link}"/>
+    <id>{link}</id>
+    <updated>{e['created']}T08:00:00+02:00</updated>
+    <summary>{summary}</summary>
+  </entry>\n"""
+    return f"""<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>AiTHENTiSCH-Tisch</title>
+  <subtitle>Konsens · Interferenz · Offen</subtitle>
+  <link href="https://ralfarminkirchner-netizen.github.io/aithentisch-tisch/atom.xml" rel="self"/>
+  <link href="https://ralfarminkirchner-netizen.github.io/aithentisch-tisch/"/>
+  <id>https://ralfarminkirchner-netizen.github.io/aithentisch-tisch/</id>
+  <updated>{dt.date.today()}T08:00:00+02:00</updated>
+{items}</feed>"""
 
 
 def build():
@@ -195,12 +280,21 @@ Premium-Plätze (Claude, GPT) laufen nur bei ausdrücklicher Anfrage — Kosten-
 Die Synthese trennt streng: <strong>Konsens</strong> (was mindestens zwei unabhängig sagen) ·
 <strong>Interferenz</strong> (alle Widersprüche stehen bleiben, mit Namen) · <strong>Offen</strong> (was keiner beantworten konnte).</p>
 <div class="card"><strong>{len(entries)}</strong> {runden_wort} · <strong class="warn">{n_contested}</strong> contested ·
-<strong>{aktiv_n}</strong> Plätze besetzt · <a href="plaetze.html">Platz-Tafel →</a></div>
+<strong>{aktiv_n}</strong> Plätze besetzt · <a href="plaetze.html">Platz-Tafel →</a> · <a href="matrix.html">Interferenz-Matrix →</a> · <a href="atom.xml">Feed</a></div>
 <h2>Runden</h2>
 {cards or '<p class="mut">Noch keine Runden.</p>'}
 """
     (DOCS / "index.html").write_text(
         top_page("AiTHENTiSCH-Tisch", index_body, "Konsens · Interferenz · Offen"), encoding="utf-8")
+
+    # --- Interferenz-Matrix + Atom-Feed ---
+    matrix_html, _ = build_matrix(entries)
+    if matrix_html:
+        (DOCS / "matrix.html").write_text(
+            top_page("Interferenz-Matrix", matrix_html,
+                     "Wer stimmt wem zu — und wer widerspricht? (über alle öffentlichen Runden)"),
+            encoding="utf-8")
+    (DOCS / "atom.xml").write_text(build_atom(entries), encoding="utf-8")
     (DOCS / ".nojekyll").write_text("", encoding="utf-8")
     print(f"[site] {len(entries)} oeffentliche Runden gerendert, {len(skipped)} privat zurueckgehalten → {DOCS}")
 

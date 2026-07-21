@@ -44,6 +44,28 @@ def main():
 
     QUEUE.write_text("\n".join(comments + rest) + "\n", encoding="utf-8")
 
+    # --- Auto-Publikation: Site neu bauen, bei Aenderungen committen+pushen ---
+    if todo:
+        try:
+            subprocess.run([sys.executable, str(D / "site.py")], cwd=str(D),
+                           capture_output=True, text=True, timeout=120)
+            p = subprocess.run(["git", "add", "-A"], cwd=str(D), capture_output=True, text=True)
+            st = subprocess.run(["git", "status", "--porcelain"], cwd=str(D),
+                                capture_output=True, text=True).stdout.strip()
+            if st:
+                subprocess.run(["git", "-c", "user.name=AiTHENTiSCH-Tisch", "-c",
+                                "user.email=tisch@localhost", "commit", "-m",
+                                f"Site: {len(todo)} neue Runde(n) aus Warteschlange"],
+                               cwd=str(D), capture_output=True, text=True)
+                push = subprocess.run(["git", "push"], cwd=str(D),
+                                      capture_output=True, text=True, timeout=120)
+                print("[auto-publish] Site neu gebaut und gepusht." if push.returncode == 0
+                      else f"[auto-publish] push FEHLER: {push.stderr[-200:]}")
+            else:
+                print("[auto-publish] Site aktuell, nichts zu pushen.")
+        except Exception as e:
+            print(f"[auto-publish] FEHLER: {e}")
+
 
 if __name__ == "__main__":
     main()

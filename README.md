@@ -54,6 +54,21 @@ Die Site (docs/, GitHub Pages) rendert **nur** Tischrunden, deren Wiki-Frontmatt
 `public: true` trägt. Alles andere bleibt privat — der Tisch behandelt auch
 interne Manuskripte. Opt-in, nicht Opt-out.
 
+Zur Site gehören außerdem:
+
+- **Interferenz-Matrix** (`matrix.html`) — Co-Konsens-Paare und Divergenz-Quote
+  pro Platz: der empirische Nachweis, ob die Perspektiven echte Diversität liefern.
+- **Atom-Feed** (`atom.xml`) — neue öffentliche Runden per Feedreader abonnierbar.
+- **Auto-Publikation** — der Warteschlangen-Cron baut die Site nach jeder Runde
+  neu und pusht sie selbständig.
+
+## Öffentlicher Eingangskanal
+
+Fragen können als **GitHub-Issue mit Label `tischfrage`** gestellt werden.
+Der morgendliche Lauf übernimmt sie in die Warteschlange (Label `eingeplant`)
+und der Tisch antwortet — Ergebnis erscheint auf der Site, sofern die Runde
+`public: true` erhält (menschliche Freigabe, kein Automatismus).
+
 ## Verfassung
 
 - Kein Platz benutzt Werkzeuge oder Websuche.

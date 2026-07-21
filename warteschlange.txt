@@ -3,3 +3,4 @@
 # Beispiele (einkommentieren oder eigene darunter schreiben):
 # Wo verlaueft die Grenze zwischen Hilfe und Entmuendigung bei KI-Unterstuetzung fuer neurodivergente Menschen?
 # Ist Interferenz zwischen Modellen ein Erkenntnisgewinn oder nur statistisches Rauschen?
+Wo hoert Verstehen auf und beginnt Verrechnen? (Erste oeffentliche Tischfrage)  [GitHub-Issue #1]
