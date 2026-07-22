@@ -3,4 +3,5 @@
 # Beispiele (einkommentieren oder eigene darunter schreiben):
 # Wo verlaueft die Grenze zwischen Hilfe und Entmuendigung bei KI-Unterstuetzung fuer neurodivergente Menschen?
 # Ist Interferenz zwischen Modellen ein Erkenntnisgewinn oder nur statistisches Rauschen?
-Wo hoert Verstehen auf und beginnt Verrechnen? (Erste oeffentliche Tischfrage)  [GitHub-Issue #1]
+Dynamik-Modell 'Die Deckung': Wenn Masking den Bedarf unsichtbar macht und die Umgebung nur Sichtbares unterstuetzt — ist die Forderung 'mach deinen Bedarf sichtbar' fair, oder verlagert sie die Deutungsarbeit der Umgebung erneut auf die Person, die schon kompensiert?  | tags: adhs, dynamik, masking
+Dynamik-Modell 'Die Schleife': Miltons double empathy problem sagt, Missverstehen zwischen Neurologien ist wechselseitig. Was folgt daraus fuer die Zuschreibung von Schuld in Eskalationsschleifen (Reiz -> Bedrohung -> Reaktion -> Deutung als Charakter -> neuer Reiz)?  | tags: adhs, dynamik, double-empathy

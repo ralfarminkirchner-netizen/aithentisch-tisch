@@ -2,3 +2,7 @@
 {"ts": "2026-07-21T21:55:14", "event": "probe", "seat": "gemini", "ok": true, "latency_s": 14.6, "error": ""}
 {"ts": "2026-07-21T21:55:19", "event": "probe", "seat": "kimi-kritik", "ok": true, "latency_s": 19.9, "error": ""}
 {"ts": "2026-07-21T21:55:20", "event": "probe", "seat": "kimi", "ok": true, "latency_s": 21.2, "error": ""}
+{"ts": "2026-07-22T07:00:36", "event": "probe", "seat": "xai", "ok": false, "latency_s": 11.3, "error": "her used all available credits or reached its monthly spending limit. To continue making API request"}
+{"ts": "2026-07-22T07:00:36", "event": "probe", "seat": "gemini", "ok": true, "latency_s": 11.6, "error": ""}
+{"ts": "2026-07-22T07:00:43", "event": "probe", "seat": "kimi-kritik", "ok": false, "latency_s": 18.7, "error": "session_id: 20260722_070030_bc1761"}
+{"ts": "2026-07-22T07:00:44", "event": "probe", "seat": "kimi", "ok": false, "latency_s": 19.5, "error": "session_id: 20260722_070030_e545e0"}
