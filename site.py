@@ -22,7 +22,7 @@ DOCS = Path(__file__).parent / "docs"
 # Giscus (Kommentare via GitHub Discussions): aktiv, sobald die Giscus-App im Repo
 # installiert ist, Discussions an sind und hier die Kategorie-ID eingetragen wird.
 GISCUS_REPO_ID = "1308038765"
-GISCUS_CATEGORY_ID = ""  # TODO nach App-Installation eintragen
+GISCUS_CATEGORY_ID = "DIC_kwDOTfcWbc4DBwKH"  # General (Discussions aktiv seit 2026-07-21)
 
 STYLE = """
 :root { --bg:#0d1117; --fg:#e6edf3; --mut:#8b949e; --acc:#58a6ff; --ok:#3fb950; --warn:#d29922; --bad:#f85149; --card:#161b22; --line:#30363d; }
