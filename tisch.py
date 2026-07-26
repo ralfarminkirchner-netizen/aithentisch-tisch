@@ -21,13 +21,69 @@ PLATZ-ARCHITEKTUR (v2, 20.07.2026):
 
 Status: proposed. Kanon setzt nur Ralf.
 """
-import argparse, datetime as dt, os, re, subprocess, sys
+import argparse, datetime as dt, json, os, re, subprocess, sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ingest"))
+from guard import ACCEPT_PRIVATE, assess_note, opaque_id
 
 WIKI = Path(os.environ.get("WIKI_PATH", str(Path.home() / "wiki")))
 HERMES = os.environ.get("HERMES_BIN", str(Path.home() / ".hermes/hermes-agent/venv/bin/hermes"))
 ENV_FILE = Path.home() / ".hermes/.env"
+os.umask(0o077)
+
+
+def write_private_text(path: Path, value: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(value, encoding="utf-8")
+    os.chmod(temporary, 0o600)
+    os.replace(temporary, path)
+
+
+def guard_external_output(source: str, value: str, metadata: dict) -> dict:
+    """Inspect a complete provider payload before storage or onward transfer."""
+    assessment = assess_note(
+        f"Tisch provider output: {source}",
+        value,
+        metadata=json.dumps(metadata, ensure_ascii=False, sort_keys=True),
+    )
+    if assessment["decision"] == ACCEPT_PRIVATE:
+        return assessment
+
+    issue_codes = assessment["issue_codes"]
+    sensitivity = (
+        "secret"
+        if assessment["decision"] == "quarantine_secret"
+        else "restricted"
+    )
+    held_root = (
+        WIKI / "_quarantine" / "secrets" / "tisch-provider"
+        if sensitivity == "secret"
+        else WIKI / "raw" / "restricted-tisch-provider"
+    )
+    held_id = opaque_id(
+        f"{source}\0{assessment['semantic_hash']}\0"
+        f"{json.dumps(metadata, sort_keys=True, ensure_ascii=False)}"
+    )
+    write_private_text(
+        held_root / f"{held_id}.json",
+        json.dumps(
+            {
+                "held_at": dt.datetime.now().isoformat(timespec="seconds"),
+                "source": source,
+                "sensitivity": sensitivity,
+                "issue_codes": issue_codes,
+                "public_export_allowed": False,
+                "metadata": metadata,
+                "content": value,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+    )
+    return assessment
 
 # ---------------------------------------------------------------------------
 # PLAETZE — name, provider, model, env_key, tier, perspektive
@@ -261,11 +317,47 @@ def run_seat(seat: str, question: str, context: str, timeout: int = 300) -> dict
     try:
         p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         out = (p.stdout or "").strip()
+        serr = (p.stderr or "").strip()
         ok = p.returncode == 0 and bool(out) and "Error:" not in out[:30]
-        err = (p.stderr or "")[-500:] if not ok else ""
-        if not ok and not err and out:
-            err = out[:200]
-        return {"seat": seat, "role": role_name, "ok": ok, "answer": out, "error": err}
+        err = ""
+        if not ok:
+            # hermes schreibt echte API-Fehler (429 Guthaben, 403 Credits) nach STDOUT
+            # und nur eine session_id nach STDERR. Frueher gewann stderr — dadurch war
+            # der Ausfallgrund unlesbar ("session_id: …") und kimi lag 5 Tage
+            # unerkannt am Guthaben. Beide Stroeme aufbewahren.
+            parts = []
+            if out:
+                parts.append(f"stdout: {out[:400]}")
+            if serr:
+                parts.append(f"stderr: {serr[-200:]}")
+            err = " | ".join(parts) or f"rc={p.returncode}, keine Ausgabe"
+        guarded_value = out if ok else f"{out}\n{serr}"
+        output_guard = guard_external_output(
+            seat,
+            guarded_value,
+            {
+                "provider": cfg["provider"],
+                "model": cfg.get("model") or "default",
+                "returncode": p.returncode,
+                "stream_kind": "answer" if ok else "diagnostic",
+            },
+        )
+        if output_guard["decision"] != ACCEPT_PRIVATE:
+            codes = ",".join(output_guard["issue_codes"]) or "POLICY_REVIEW"
+            return {
+                "seat": seat,
+                "role": role_name,
+                "ok": False,
+                "answer": "",
+                "error": f"provider output held ({codes})",
+            }
+        return {
+            "seat": seat,
+            "role": role_name,
+            "ok": ok,
+            "answer": out if ok else "",
+            "error": err,
+        }
     except subprocess.TimeoutExpired:
         return {"seat": seat, "role": role_name, "ok": False, "answer": "", "error": f"timeout {timeout}s"}
 
@@ -279,8 +371,38 @@ def run_synthesis(question: str, results: list, timeout: int = 300) -> str:
             blocks.append(f"=== PLATZ: {r['seat']} ({r['role']}) (AUSGEFALLEN: {r['error'][:120]}) ===")
     prompt = SYNTH_PROMPT.format(question=question, answers="\n\n".join(blocks))
     cmd = [HERMES, "chat", "-q", prompt, "-Q", "--ignore-rules"]
-    p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-    return (p.stdout or "").strip()
+    # Returncode UND Timeout pruefen: eine gescheiterte Synthese gab hier frueher ""
+    # zurueck, und daraus wurde eine saubere Seite mit contested: false — ein Ausfall
+    # sah aus wie Einigkeit. Leerer Rueckgabewert = Ausfall, der Aufrufer behandelt ihn.
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        print(f"[tisch] Synthese TIMEOUT nach {timeout}s", file=sys.stderr)
+        return ""
+    synth_output = (p.stdout or "").strip()
+    guarded_value = synth_output if p.returncode == 0 else (
+        f"{p.stdout or ''}\n{p.stderr or ''}"
+    )
+    output_guard = guard_external_output(
+        "synthesis",
+        guarded_value,
+        {
+            "returncode": p.returncode,
+            "stream_kind": "answer" if p.returncode == 0 else "diagnostic",
+            "input_seats": [r["seat"] for r in results if r["ok"]],
+        },
+    )
+    if output_guard["decision"] != ACCEPT_PRIVATE:
+        codes = ",".join(output_guard["issue_codes"]) or "POLICY_REVIEW"
+        print(
+            f"[tisch] Synthese zurückgehalten: Provider-Output-Guard {codes}",
+            file=sys.stderr,
+        )
+        return ""
+    if p.returncode != 0:
+        print(f"[tisch] Synthese FEHLER rc={p.returncode}", file=sys.stderr)
+        return ""
+    return synth_output
 
 
 def append_index(title: str, slug: str, ts: str):
@@ -320,6 +442,8 @@ def main():
     ap.add_argument("--list-seats", action="store_true", help="Platz-Tabelle anzeigen und beenden")
     ap.add_argument("--timeout", type=int, default=300)
     ap.add_argument("--tags", help="Zusaetzliche Themen-Tags, kommagetrennt (landen im Frontmatter)")
+    ap.add_argument("--no-kontext", action="store_true",
+                    help="Stehendes Systemkontextpapier (kontext.md) NICHT mitgeben")
     args = ap.parse_args()
 
     if args.list_seats:
@@ -344,7 +468,39 @@ def main():
     question = args.question
     if question.startswith("@"):
         question = Path(question[1:]).read_text(encoding="utf-8")
-    context = Path(args.context).read_text(encoding="utf-8")[:8000] if args.context else ""
+    # --- Kontext-Zusammenbau: stehendes Systemkontextpapier + Auto-Dateien + --context ---
+    parts = []
+    kontext_path = Path(__file__).parent / "kontext.md"
+    if not args.no_kontext and kontext_path.exists():
+        parts.append(kontext_path.read_text(encoding="utf-8"))
+        print(f"[tisch] Systemkontext: kontext.md ({len(parts[0])} Zeichen)", file=sys.stderr)
+
+    # Auto-Kontext: Dateipfade in der Frage erkennen und einlesen
+    # (sonst steigen Plaetze aus: "kann Datei wegen Tool-Verbot nicht lesen")
+    for m in re.finditer(r"(/[\w./~+-]+\.(?:md|txt|markdown))\b", question):
+        p = Path(m.group(1)).expanduser()
+        if p.exists() and p.is_file():
+            try:
+                parts.append(f"=== DATEI {p.name} ===\n{p.read_text(encoding='utf-8', errors='replace')[:8000]}")
+                print(f"[tisch] Auto-Kontext: {p.name} eingelesen", file=sys.stderr)
+            except Exception as e:
+                print(f"[tisch] Auto-Kontext FEHLER {p}: {e}", file=sys.stderr)
+        else:
+            print(f"[tisch] Auto-Kontext: {p} nicht gefunden (Plaetze ohne Datei)", file=sys.stderr)
+
+    if args.context:
+        parts.append(Path(args.context).read_text(encoding="utf-8")[:8000])
+    context = "\n\n".join(parts)[:20000]
+
+    guard_result = assess_note(question[:240], f"{question}\n\n{context}")
+    if guard_result["decision"] != ACCEPT_PRIVATE:
+        codes = ", ".join(guard_result["issue_codes"]) or "POLICY_REVIEW"
+        print(
+            f"[tisch] ABORT vor Provider-Aufruf: Substrat-Guard {codes}. "
+            "Inhalt wurde an keinen Platz gesendet.",
+            file=sys.stderr,
+        )
+        sys.exit(3)
 
     ts = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
     t0 = dt.datetime.now()
@@ -368,10 +524,13 @@ def main():
     raw_dir = WIKI / "raw" / "tisch"
     raw_dir.mkdir(parents=True, exist_ok=True)
     for r in results:
-        (raw_dir / f"{slug}-{r['seat']}.md").write_text(
-            f"---\nseat: {r['seat']}\nperspektive: {r['role']}\nts: {ts}\nok: {r['ok']}\n---\n\n"
+        write_private_text(
+            raw_dir / f"{slug}-{r['seat']}.md",
+            f"---\nseat: {r['seat']}\nperspektive: {r['role']}\nts: {ts}\nok: {r['ok']}\n"
+            "sensitivity: private\npublic_export_allowed: false\n"
+            "origin_assessment: mixed_declared\n---\n\n"
             f"FRAGE:\n{question}\n\nANTWORT:\n{r['answer'] or '(ausgefallen: ' + r['error'] + ')'}\n",
-            encoding="utf-8")
+        )
 
     ok_seats = [r["seat"] for r in results if r["ok"]]
     if len(ok_seats) < 2:
@@ -380,14 +539,29 @@ def main():
 
     print("[tisch] Synthese laeuft …", file=sys.stderr)
     synth = run_synthesis(question, results, args.timeout)
-    contested = "contested: ja" in synth.lower()
+    if synth:
+        contested = bool(re.search(r"contested:\s*ja", synth, re.I))
+        confidence = "medium" if len(ok_seats) >= 3 else "low"
+    else:
+        # Kein Konsens bestimmt = kein Nicht-Widerspruch. Der Ausfall wird auf der
+        # Seite benannt, nicht weggeglaettet.
+        synth = ("## SYNTHESE AUSGEFALLEN\n\n"
+                 "Der Synthese-Platz hat keine Antwort geliefert (Fehler oder Timeout). "
+                 "Konsens, Interferenz und Offen sind **nicht bestimmt**. Die Rohantworten "
+                 "der Plaetze stehen unten und in `raw/tisch/` — sie sind vollstaendig, "
+                 "nur die Verdichtung fehlt.")
+        contested = True
+        confidence = "low"
+        print("[tisch] Synthese ausgefallen — Seite wird als contested/low geschrieben.",
+              file=sys.stderr)
 
     title = question.strip().splitlines()[0][:80]
     page = WIKI / "queries" / f"{slug}.md"
     page.parent.mkdir(parents=True, exist_ok=True)
     sources = ", ".join(f"raw/tisch/{slug}-{s}.md" for s in seats)
     roles = "; ".join(f"{r['seat']}={r['role']}" for r in results)
-    page.write_text(
+    write_private_text(
+        page,
         f"""---
 title: "Tisch: {title}"
 created: {dt.date.today()}
@@ -396,8 +570,12 @@ type: query
 status: proposed
 tags: [{tags_str}]
 sources: [{sources}]
-confidence: medium
+confidence: {confidence}
 contested: {'true' if contested else 'false'}
+sensitivity: private
+public: false
+public_export_allowed: false
+origin_assessment: mixed_declared
 ---
 
 # Tisch: {title}
@@ -413,7 +591,7 @@ contested: {'true' if contested else 'false'}
 
 ## Rohantworten
 """ + "\n".join(f"- [[../../raw/tisch/{slug}-{s}.md|Platz {s}]]" for s in seats) + "\n",
-        encoding="utf-8")
+    )
 
     append_index(title, slug, ts[:8])
     append_log(question, slug, ok_seats, contested)

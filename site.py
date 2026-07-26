@@ -10,11 +10,13 @@ Rendert:
 Kein Framework, keine Dependencies — Python-Stdlib, dunkles Theme, deutsch.
 Status: proposed. Kanon setzt nur Ralf.
 """
-import datetime as dt, html, re, sys, os
+import datetime as dt, html, json, re, sys, os
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import tisch  # SEATS, PERSPEKTIVEN, load_env_keys, seat_status
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ingest"))
+from guard import authorize_reviewed_public_export
 
 WIKI = Path(os.environ.get("WIKI_PATH", str(Path.home() / "wiki")))
 DOCS = Path(__file__).parent / "docs"
@@ -116,6 +118,33 @@ def parse_query(path: Path) -> dict:
             "created": fm.get("created", "")}
 
 
+def is_publishable(entry: dict) -> bool:
+    fm = entry["fm"]
+    record = {
+        "id": entry["slug"],
+        "public": fm.get("public") == "true",
+        "public_export_allowed": fm.get("public_export_allowed") == "true",
+        "sensitivity": fm.get("sensitivity", ""),
+        "frontmatter": fm,
+        "question": entry["frage"],
+        "body": entry["body"],
+        "tags": entry["tags"],
+        "contested": entry["contested"],
+        "created": entry["created"],
+    }
+    receipt_path = WIKI / "_public-review" / f"{entry['slug']}.json"
+    if not receipt_path.is_file():
+        return False
+    try:
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return authorize_reviewed_public_export(
+        record,
+        receipt,
+    )
+
+
 def build_matrix(entries):
     """Interferenz-Matrix: Co-Konsens-Paare + Divergenz-Quote pro Platz.
     Ehrliche Proxy-Metrik aus den Synthese-Strukturen (kein Embeddings-Voodoo)."""
@@ -146,7 +175,14 @@ def build_matrix(entries):
                     div[s] += 1
     used = [s for s in seats if part[s] > 0]
     if not used:
-        return "", ""
+        return (
+            """
+<h2>Noch keine freigegebenen Runden</h2>
+<p class="mut">Die Matrix bleibt leer, bis mindestens eine vollständig
+geprüfte und extern signierte öffentliche Runde vorliegt.</p>
+""",
+            [],
+        )
     # Matrix-Tabelle (obere Dreiecksform)
     header = "".join(f"<th class='small'>{s}</th>" for s in used)
     mrows = ""
@@ -276,22 +312,33 @@ def build():
 
     queries = sorted((WIKI / "queries").glob("*tisch*.md"), reverse=True) if (WIKI / "queries").exists() else []
     entries, skipped = [], []
+    rendered_names = set()
     for q in queries:
         d = parse_query(q)
-        # OPT-IN: Nur Runden mit `public: true` im Frontmatter werden veroeffentlicht.
-        # Der Tisch behandelt auch interne Manuskripte — die Site ist oeffentlich.
-        if d["fm"].get("public") != "true":
+        # Dreifaches OPT-IN plus erneuter Inhalts-Guard direkt vor dem Rendern.
+        if not is_publishable(d):
             skipped.append(d["slug"])
             continue
         entries.append(d)
+        rendered_names.add(f"{d['slug']}.html")
         raw_links = re.findall(r"\[\[\.\./\.\./(raw/tisch/[^|\]]+)\|([^\]]+)\]\]", d["body"])
         raw_html = ""
         for rel, label in raw_links:
-            rp = WIKI / rel
-            if rp.exists():
-                rtext = rp.read_text(encoding="utf-8")
-                rtext = re.sub(r"^---\n.*?\n---\n", "", rtext, flags=re.S)
-                raw_html += f"<details><summary>{html.escape(label)}</summary><pre>{html.escape(rtext.strip())}</pre></details>"
+            try:
+                rp = (WIKI / rel).resolve(strict=True)
+                raw_root = (WIKI / "raw" / "tisch").resolve(strict=True)
+            except OSError:
+                continue
+            if rp != raw_root and raw_root not in rp.parents:
+                continue
+            if rp.is_file():
+                raw_entry = parse_query(rp)
+                if not is_publishable(raw_entry):
+                    continue
+                raw_html += (
+                    f"<details><summary>{html.escape(label)}</summary>"
+                    f"<pre>{html.escape(raw_entry['body'].strip())}</pre></details>"
+                )
         main = re.sub(r"## Rohantworten.*", "", d["body"], flags=re.S)
         main = re.sub(r"^# .*\n", "", main)
         cls = "contested" if d["contested"] else "clean"
@@ -309,6 +356,12 @@ def build():
 """
         (runden_dir / f"{d['slug']}.html").write_text(
             page(d["frage"][:80] or d["slug"], body, f"Tischrunde · {d['created']}"), encoding="utf-8")
+
+    # Entfernt ausschließlich generierte Seiten, deren Quelle heute nicht mehr
+    # explizit veröffentlichbar ist. So bleiben alte Freigaben nicht als Leck liegen.
+    for stale in runden_dir.glob("*.html"):
+        if stale.name not in rendered_names:
+            stale.unlink()
 
     # --- Platz-Tafel ---
     keys = tisch.load_env_keys()
@@ -394,6 +447,8 @@ Die Synthese trennt streng: <strong>Konsens</strong> (was mindestens zwei unabh�
             top_page("Interferenz-Matrix", matrix_html,
                      "Wer stimmt wem zu — und wer widerspricht? (über alle öffentlichen Runden)"),
             encoding="utf-8")
+    elif (DOCS / "matrix.html").exists():
+        (DOCS / "matrix.html").unlink()
     (DOCS / "atom.xml").write_text(build_atom(entries), encoding="utf-8")
     (DOCS / ".nojekyll").write_text("", encoding="utf-8")
     print(f"[site] {len(entries)} oeffentliche Runden gerendert, {len(skipped)} privat zurueckgehalten → {DOCS}")

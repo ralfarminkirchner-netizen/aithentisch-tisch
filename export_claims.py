@@ -86,7 +86,7 @@ def main():
     index, n_claims = [], 0
     for q in queries:
         e = site_mod.parse_query(q)
-        if e["fm"].get("public") != "true" or not e["contested"]:
+        if not site_mod.is_publishable(e) or not e["contested"]:
             continue
         claims = claims_for(e)
         if not claims:
@@ -97,6 +97,10 @@ def main():
                       "frage": e["frage"], "claims": len(claims),
                       "file": path.name})
         n_claims += len(claims)
+    retained = {item["file"] for item in index}
+    for stale in OUT.glob("*-claims.json"):
+        if stale.name not in retained:
+            stale.unlink()
     (OUT / "index.json").write_text(json.dumps({
         "generated": str(dt.date.today()),
         "note": "AssignmentClaim-Entwuerfe aus contested Tischrunden. Unvalidiert, status=proposed. Kanon setzt nur Ralf.",
