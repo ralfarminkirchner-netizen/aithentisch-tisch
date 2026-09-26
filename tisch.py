@@ -24,14 +24,24 @@ Status: proposed. Kanon setzt nur Ralf.
 import argparse, datetime as dt, json, os, re, subprocess, sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ingest"))
 from guard import ACCEPT_PRIVATE, assess_note, opaque_id
+
+sys.path.insert(0, str(Path(__file__).parent))
+import kugelmatrix_export
 
 WIKI = Path(os.environ.get("WIKI_PATH", str(Path.home() / "wiki")))
 HERMES = os.environ.get("HERMES_BIN", str(Path.home() / ".hermes/hermes-agent/venv/bin/hermes"))
 ENV_FILE = Path.home() / ".hermes/.env"
 os.umask(0o077)
+
+# kugelmatrix.round.v1-Export: standardmäßig AN (jede Runde wird sofort in der
+# Kugelmatrix ansehbar), per --no-kugelmatrix oder TISCH_KUGELMATRIX=0 abschaltbar.
+KUGELMATRIX_EXPORT_DEFAULT = os.environ.get("TISCH_KUGELMATRIX", "1").strip().lower() not in (
+    "0", "false", "no", "nein", "aus",
+)
 
 
 def write_private_text(path: Path, value: str) -> None:
@@ -405,6 +415,23 @@ def run_synthesis(question: str, results: list, timeout: int = 300) -> str:
     return synth_output
 
 
+def write_kugelmatrix_export(page: Path, slug: str, raw_dir: Optional[Path] = None) -> Optional[Path]:
+    """Schreibt <slug>.kugelmatrix.json neben die Tischseite (kugelmatrix.round.v1).
+
+    Nutzt dieselbe Lesart wie der Referenz-Konverter im Kugelmatrix-Repo
+    (`tools/round_import.py aithentisch`) — siehe kugelmatrix_export.py.
+    Optionale, rein additive Ausgabe: ein Fehler hier bricht die Runde nicht ab.
+    """
+    try:
+        doc = kugelmatrix_export.export_round(page, raw_dir=raw_dir)
+    except kugelmatrix_export.RoundError as e:
+        print(f"[tisch] Kugelmatrix-Export uebersprungen: {e}", file=sys.stderr)
+        return None
+    out = page.with_name(f"{slug}.kugelmatrix.json")
+    write_private_text(out, json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
+    return out
+
+
 def append_index(title: str, slug: str, ts: str):
     idx = WIKI / "index.md"
     if not idx.exists():
@@ -444,6 +471,9 @@ def main():
     ap.add_argument("--tags", help="Zusaetzliche Themen-Tags, kommagetrennt (landen im Frontmatter)")
     ap.add_argument("--no-kontext", action="store_true",
                     help="Stehendes Systemkontextpapier (kontext.md) NICHT mitgeben")
+    ap.add_argument("--no-kugelmatrix", action="store_true",
+                    help="kugelmatrix.round.v1-Export (<slug>.kugelmatrix.json) NICHT schreiben "
+                         "(Default: an, außer TISCH_KUGELMATRIX=0)")
     args = ap.parse_args()
 
     if args.list_seats:
@@ -595,6 +625,13 @@ origin_assessment: mixed_declared
 
     append_index(title, slug, ts[:8])
     append_log(question, slug, ok_seats, contested)
+
+    # Kugelmatrix: jede Runde sofort ansehbar (kugelmatrix.round.v1), neben der
+    # Tischseite. Optional, standardmäßig an — siehe --no-kugelmatrix / TISCH_KUGELMATRIX.
+    if KUGELMATRIX_EXPORT_DEFAULT and not args.no_kugelmatrix:
+        km_path = write_kugelmatrix_export(page, slug, raw_dir=raw_dir)
+        if km_path:
+            print(f"[tisch] Kugelmatrix-Runde: {km_path}", file=sys.stderr)
 
     # Verlaufsprotokoll (history.jsonl) — Ausfallmuster & Runden-Dauer
     try:
