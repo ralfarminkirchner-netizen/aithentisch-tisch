@@ -249,7 +249,8 @@ def kugelmatrix_link(urls: list) -> str:
     """Verlinkt den Kugelmatrix-Betrachter mit einer oder mehreren Runden (?round=…)."""
     if not urls:
         return ""
-    qs = "&".join(f"round={u}" for u in urls)
+    from urllib.parse import quote
+    qs = "&amp;".join("round=" + quote(u, safe="") for u in urls)
     return (f'<p class="small"><a href="{KUGELMATRIX_VIEWER}?{qs}" target="_blank" rel="noopener">'
             f"🔮 In Kugelmatrix ansehen →</a> "
             f'<span class="mut">(lokal: <code>{KUGELMATRIX_VIEWER_LOCAL}?{qs}</code>)</span></p>')
