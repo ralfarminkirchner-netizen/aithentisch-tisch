@@ -40,6 +40,23 @@ python3 site.py                                 # Site neu bauen (docs/)
 
 Fragen für die tägliche automatische Runde: eine Zeile in `warteschlange.txt`.
 
+## Kugelmatrix-Export
+
+Jede Runde schreibt zusätzlich `<slug>.kugelmatrix.json` neben die Tischseite
+(`~/wiki/queries/`) — Format `kugelmatrix.round.v1`, das Austauschformat der
+[Kugelmatrix](https://kugelmatrix-production.up.railway.app/). Plätze werden zu
+Fingern, KONSENS/INTERFERENZ-Nennungen mit ≥2 Plätzen zu Beziehungen
+(`authority: synthesis_reading` — ungeprüfte Hypothesen aus der Synthese-Lesart,
+keine geprüfte Übereinstimmung). Die Logik ist ein Eins-zu-eins-Port des
+Referenz-Konverters (`round_import.py aithentisch`) aus dem Kugelmatrix-Repo —
+siehe `kugelmatrix_export.py`. Rein additiv, Standardbibliothek, keine neue
+Abhängigkeit; die Quelle bleibt maßgeblich, es wird nie zurückgeschrieben.
+
+Standardmäßig an. Abschaltbar per `--no-kugelmatrix` oder `TISCH_KUGELMATRIX=0`.
+Veröffentlichte Runden verlinken auf der Site zusätzlich „🔮 In Kugelmatrix
+ansehen“ (`site.py` kopiert die Datei mit demselben Opt-in-Filter nach
+`docs/runden/`).
+
 ## Automatisierung (Cron)
 
 | Job | Zeitplan | Funktion |

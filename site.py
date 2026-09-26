@@ -21,6 +21,15 @@ from guard import authorize_reviewed_public_export
 WIKI = Path(os.environ.get("WIKI_PATH", str(Path.home() / "wiki")))
 DOCS = Path(__file__).parent / "docs"
 
+# Kugelmatrix: statische Betrachter-Seite fuer kugelmatrix.round.v1-Dateien.
+# tisch.py schreibt <slug>.kugelmatrix.json optional neben jede Tischseite
+# (siehe kugelmatrix_export.py). Wird eine solche Datei fuer eine
+# veroeffentlichte Runde gefunden, kopiert die Site sie mit nach docs/runden/
+# und verlinkt den Betrachter — derselbe Opt-in-Filter (is_publishable) gilt.
+KUGELMATRIX_VIEWER = "https://kugelmatrix-production.up.railway.app/moonfingers-universe.html"
+KUGELMATRIX_VIEWER_LOCAL = "http://127.0.0.1:8770/moonfingers-universe.html"
+PAGES_BASE = "https://ralfarminkirchner-netizen.github.io/aithentisch-tisch"
+
 # Giscus (Kommentare via GitHub Discussions): aktiv, sobald die Giscus-App im Repo
 # installiert ist, Discussions an sind und hier die Kategorie-ID eingetragen wird.
 GISCUS_REPO_ID = "1308038765"
@@ -236,6 +245,17 @@ def build_atom(entries):
 {items}</feed>"""
 
 
+def kugelmatrix_link(urls: list) -> str:
+    """Verlinkt den Kugelmatrix-Betrachter mit einer oder mehreren Runden (?round=…)."""
+    if not urls:
+        return ""
+    from urllib.parse import quote
+    qs = "&amp;".join("round=" + quote(u, safe="") for u in urls)
+    return (f'<p class="small"><a href="{KUGELMATRIX_VIEWER}?{qs}" target="_blank" rel="noopener">'
+            f"🔮 In Kugelmatrix ansehen →</a> "
+            f'<span class="mut">(lokal: <code>{KUGELMATRIX_VIEWER_LOCAL}?{qs}</code>)</span></p>')
+
+
 def claims_link(d: dict) -> str:
     """Link zum AssignmentClaim-Export, falls die Runde contested ist und Claims existieren."""
     p = Path(__file__).parent / "docs" / "kanon-export" / f"{d['slug']}-claims.json"
@@ -313,6 +333,8 @@ def build():
     queries = sorted((WIKI / "queries").glob("*tisch*.md"), reverse=True) if (WIKI / "queries").exists() else []
     entries, skipped = [], []
     rendered_names = set()
+    rendered_km_names = set()
+    all_km_urls = []
     for q in queries:
         d = parse_query(q)
         # Dreifaches OPT-IN plus erneuter Inhalts-Guard direkt vor dem Rendern.
@@ -321,6 +343,22 @@ def build():
             continue
         entries.append(d)
         rendered_names.add(f"{d['slug']}.html")
+
+        # Kugelmatrix-Export dieser Runde (falls tisch.py ihn geschrieben hat):
+        # mit demselben Opt-in wie die Runde selbst nach docs/runden/ kopieren.
+        km_html = ""
+        km_src = q.with_name(f"{d['slug']}.kugelmatrix.json")
+        if km_src.is_file():
+            try:
+                km_dst = runden_dir / f"{d['slug']}.kugelmatrix.json"
+                km_dst.write_text(km_src.read_text(encoding="utf-8"), encoding="utf-8")
+                rendered_km_names.add(km_dst.name)
+                km_url = f"{PAGES_BASE}/runden/{km_dst.name}"
+                all_km_urls.append(km_url)
+                km_html = kugelmatrix_link([km_url])
+            except OSError:
+                km_html = ""
+
         raw_links = re.findall(r"\[\[\.\./\.\./(raw/tisch/[^|\]]+)\|([^\]]+)\]\]", d["body"])
         raw_html = ""
         for rel, label in raw_links:
@@ -349,6 +387,7 @@ def build():
   <h3>Frage</h3><p><strong>{html.escape(d['frage'])}</strong></p>
 </div>
 {md_lite(main)}
+{km_html}
 <h2>Rohantworten der Plätze</h2>
 {raw_html or '<p class="mut">Keine Rohantworten gefunden.</p>'}
 {claims_link(d)}
@@ -361,6 +400,9 @@ def build():
     # explizit veröffentlichbar ist. So bleiben alte Freigaben nicht als Leck liegen.
     for stale in runden_dir.glob("*.html"):
         if stale.name not in rendered_names:
+            stale.unlink()
+    for stale in runden_dir.glob("*.kugelmatrix.json"):
+        if stale.name not in rendered_km_names:
             stale.unlink()
 
     # --- Platz-Tafel ---
@@ -433,6 +475,7 @@ Die Synthese trennt streng: <strong>Konsens</strong> (was mindestens zwei unabh�
 <strong>Interferenz</strong> (alle Widersprüche stehen bleiben, mit Namen) · <strong>Offen</strong> (was keiner beantworten konnte).</p>
 <div class="card"><strong>{len(entries)}</strong> {runden_wort} · <strong class="warn">{n_contested}</strong> contested ·
 <strong>{aktiv_n}</strong> Plätze besetzt · <a href="plaetze.html">Platz-Tafel →</a> · <a href="matrix.html">Interferenz-Matrix →</a> · <a href="atom.xml">Feed</a></div>
+{kugelmatrix_link(all_km_urls)}
 <h2>Runden</h2>
 {filter_bar}
 {cards or '<p class="mut">Noch keine Runden.</p>'}
@@ -444,7 +487,7 @@ Die Synthese trennt streng: <strong>Konsens</strong> (was mindestens zwei unabh�
     matrix_html, _ = build_matrix(entries)
     if matrix_html:
         (DOCS / "matrix.html").write_text(
-            top_page("Interferenz-Matrix", matrix_html,
+            top_page("Interferenz-Matrix", kugelmatrix_link(all_km_urls) + matrix_html,
                      "Wer stimmt wem zu — und wer widerspricht? (über alle öffentlichen Runden)"),
             encoding="utf-8")
     elif (DOCS / "matrix.html").exists():
